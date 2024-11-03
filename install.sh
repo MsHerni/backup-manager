@@ -44,8 +44,8 @@ while :; do
     ask "Enter the backup interval in hours [Float values are acceptable]"
     read BACKUP_INTERVAL_HOURS
 
-    if [[ "$BACKUP_INTERVAL_HOURS" =~ ^[0-9]+(\.[0-9]+)?$ ]] && 
-       [[ $(echo "$BACKUP_INTERVAL_HOURS >= 0.0014" | bc -l) -eq 1 ]] && 
+    if [[ "$BACKUP_INTERVAL_HOURS" =~ ^[0-9]+(\.[0-9]+)?$ ]] &&
+       [[ $(echo "$BACKUP_INTERVAL_HOURS >= 0.0014" | bc -l) -eq 1 ]] &&
        [[ $(echo "$BACKUP_INTERVAL_HOURS <= 8760" | bc -l) -eq 1 ]]; then
         break
     else
@@ -68,58 +68,11 @@ while :; do
     fi
 done
 
-while :; do
-    ask "Enter a list of directories to back up, separated by commas [no spaces]"
-    read BASE_DIRS
+ask "Enter a list of directories to back up, separated by commas [no spaces]"
+read BASE_DIRS
 
-    if [[ -z "$BASE_DIRS" ]]; then
-        error "Input cannot be empty. Please enter at least one directory."
-        continue
-    fi
-
-    IFS=',' read -r -a DIR_ARRAY <<< "$BASE_DIRS"
-    IFS=' '
-    exist=true
-    
-    for dir in "${DIR_ARRAY[@]}"; do
-        if [[ ! -d "$dir" ]]; then
-            error "$dir does not exist!"
-            exist=false
-        fi
-    done
-
-    if $exist; then
-        break
-    else
-        error "One or more directories do not exist. Please try again."
-    fi
-done
-
-while :; do
-    ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas [no spaces]"
-    read EXCEPTION_DIRS
-
-    if [[ -z "$EXCEPTION_DIRS" ]]; then
-        break
-    fi
-
-    IFS=',' read -r -a DIR_ARRAY <<< "$EXCEPTION_DIRS"
-    IFS=' '
-    exist=true
-    
-    for dir in "${DIR_ARRAY[@]}"; do
-        if [[ ! -d "$dir" ]]; then
-            error "$dir does not exist!"
-            exist=false
-        fi
-    done
-
-    if $exist; then
-        break
-    else
-        error "One or more directories do not exist. Please try again."
-    fi
-done
+ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas [no spaces]"
+read EXCEPTION_DIRS
 
 while :; do
     ask "Enter a list of MySQL databases to back up, separated by commas [no spaces] (leave empty to back up all databases)"
@@ -133,7 +86,7 @@ while :; do
     IFS=',' read -r -a DB_ARRAY <<< "$MYSQL_BASE_DBS"
     IFS=' '
     exist=true
-    
+
     for db in "${DB_ARRAY[@]}"; do
         if ! mysql -e "USE \`$db\`" >/dev/null 2>&1; then
             error "$db does not exist!"
@@ -160,7 +113,7 @@ while :; do
     IFS=',' read -r -a DB_ARRAY <<< "$MYSQL_EXP_DBS"
     IFS=' '
     exist=true
-    
+
     for db in "${DB_ARRAY[@]}"; do
         if ! mysql -e "USE \`$db\`" >/dev/null 2>&1; then
             error "$db does not exist!"
@@ -183,17 +136,17 @@ while :; do
         while :; do
             ask "Enter the bot token"
             read TOKEN
-    
+
             if [[ "$TOKEN" =~ ^[0-9]{1,10}:[a-zA-Z0-9_-]{35}$ ]]; then
                 while :; do
                     ask "Enter the chat_id"
                     read CHAT_ID
-        
+
                     if [[ "$CHAT_ID" =~ ^-?[0-9]{1,13}$ ]]; then
                         while :; do
                             ask "Enter the topic_id [can be empty]"
                             read TOPIC_ID
-            
+
                             if [[ -z "$TOPIC_ID" || "$TOPIC_ID" =~ ^[0-9]{1,}$ ]]; then
                                 break
                             else
