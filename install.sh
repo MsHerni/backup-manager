@@ -204,7 +204,7 @@ BASE_DIRS = $BASE_DIRS
 EXCEPTION_DIRS = $EXCEPTION_DIRS
 
 ; SQL_BACKUP: Set to true to enable, false to disable
-; Supported structures: MySQL
+; Supported structures: MySQL, MariaDB
 SQL_BACKUP = $SQL_BACKUP
 
 ; SQL_BASE_DBS: Databases to back up, default "". Exclusions should be defined in SQL_EXP_DBS
@@ -212,7 +212,7 @@ SQL_BACKUP = $SQL_BACKUP
 SQL_BASE_DBS = $SQL_BASE_DBS
 
 ; SQL_EXP_DBS: Databases to exclude from backup, separated by commas
-; These databases are excluded by default: information_schema, performance_schema, mysql, sys
+; These databases are excluded by default: information_schema, performance_schema, mysql, sys, test
 SQL_EXP_DBS = $SQL_EXP_DBS
 
 ; WEBSERVER_BACKUP: Set to true to enable, false to disable
@@ -294,6 +294,8 @@ backup() {
 
         if command -v mysql >/dev/null 2>&1; then
             SQL="mysql"
+        elif command -v mariadb >/dev/null 2>&1; then
+            SQL="mariadb"
         else
             SQL_BACKUP="false"
         fi
@@ -319,7 +321,7 @@ backup() {
 
     if [[ "$SQL_BACKUP" == "true" ]]; then
         IFS=',' read -r -a SQL_EXP_DBS_ARRAY <<< "$SQL_EXP_DBS"
-        DEFAULT_SQL_EXCLUSIONS=("information_schema" "performance_schema" "mysql" "sys")
+        DEFAULT_SQL_EXCLUSIONS=("information_schema" "performance_schema" "mysql" "sys" "test")
     
         for default_db in "${DEFAULT_SQL_EXCLUSIONS[@]}"; do
             if [[ ! " ${SQL_EXP_DBS_ARRAY[@]} " =~ " ${default_db} " ]]; then
@@ -328,7 +330,7 @@ backup() {
         done
     
         if [[ -z "$SQL_BASE_DBS" ]]; then
-            if [[ "$SQL" == "mysql" ]]; then
+            if [[ "$SQL" == "mysql" || "$SQL" == "mariadb" ]]; then
                 SQL_BASE_DBS_ARRAY=($(mysql -e "SHOW DATABASES;" -s --skip-column-names))
             fi
         else
@@ -348,7 +350,9 @@ backup() {
             done
     
             if ! $skip_db; then
-                mysqldump "$db" > "$SQL_BACKUP_DIR/$db.sql"
+                if [[ "$SQL" == "mysql" || "$SQL" == "mariadb" ]]; then
+                    mysqldump "$db" > "$SQL_BACKUP_DIR/$db.sql"
+                fi
             fi
         done
     fi
