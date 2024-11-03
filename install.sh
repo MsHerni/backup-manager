@@ -99,18 +99,18 @@ while :; do
 done
 
 if [[ "$FILES_BACKUP" == "true" ]]; then
-    ask "Enter a list of directories to back up, separated by commas [no spaces]"
+    ask "Enter a list of directories to back up, separated by commas"
     read BASE_DIRS
     
-    ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas [no spaces]"
+    ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas"
     read EXCEPTION_DIRS
 fi
 
 if [[ "$SQL_BACKUP" == "true" ]]; then
-    ask "Enter a list of SQL databases to back up, separated by commas [no spaces] (leave empty to back up all databases)"
+    ask "Enter a list of SQL databases to back up, separated by commas (leave empty to back up all databases)"
     read SQL_BASE_DBS
     
-    ask "Enter a list of SQL databases to exclude from backup, separated by commas [no spaces] (leave empty for none)"
+    ask "Enter a list of SQL databases to exclude from backup, separated by commas (leave empty for none)"
     read SQL_EXP_DBS
 fi
 
@@ -195,7 +195,7 @@ TOPIC_ID = $TOPIC_ID
 ; FILES_BACKUP: Set to true to enable, false to disable
 FILES_BACKUP = $FILES_BACKUP
 
-; BASE_DIRS: List of directories to back up, separated by commas [no spaces]
+; BASE_DIRS: List of directories to back up, separated by commas
 ; Example: /var/www/test1,/var/www/test2
 BASE_DIRS = $BASE_DIRS
 
@@ -306,9 +306,11 @@ backup() {
         IFS=',' read -r -a EXCEPTION_DIR_ARRAY <<< "$EXCEPTION_DIRS"
     
         for dir in "${BASE_DIR_ARRAY[@]}"; do
+            dir="$(echo -e "${dir}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
             EXCLUDE_PATTERNS=()
     
             for exc in "${EXCEPTION_DIR_ARRAY[@]}"; do
+                exc="$(echo -e "${exc}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
                 EXCLUDE_PATTERNS+=(--exclude="${exc#$dir/}")
             done
     
@@ -341,8 +343,12 @@ backup() {
         mkdir -p "$SQL_BACKUP_DIR"
     
         for db in "${SQL_BASE_DBS_ARRAY[@]}"; do
+            db="$(echo -e "${db}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
             skip_db=false
             for exp_db in "${SQL_EXP_DBS_ARRAY[@]}"; do
+                exp_db="$(echo -e "${exp_db}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
                 if [[ "$db" == "$exp_db" ]]; then
                     skip_db=true
                     break
