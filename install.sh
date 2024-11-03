@@ -462,7 +462,7 @@ fi
 
 log "Reloading and Enabling the service"
 systemctl daemon-reload
-if systemctl enable "$NAME.service"; then
+if systemctl enable "$NAME.service" > /dev/null 2>&1; then
     success
 else
     error "Access Denied. Check permissions."
