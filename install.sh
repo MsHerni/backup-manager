@@ -68,65 +68,51 @@ while :; do
     fi
 done
 
-ask "Enter a list of directories to back up, separated by commas [no spaces]"
-read BASE_DIRS
-
-ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas [no spaces]"
-read EXCEPTION_DIRS
-
 while :; do
-    ask "Enter a list of MySQL databases to back up, separated by commas [no spaces] (leave empty to back up all databases)"
-    read MYSQL_BASE_DBS
+    ask "Should sql dbs be backed up? (y|n)"
+    read SQL_BACKUP
 
-    if [[ -z "$MYSQL_BASE_DBS" ]]; then
-        MYSQL_BASE_DBS=""
+    if [[ "$SQL_BACKUP" == "y" ]]; then
+        SQL_BACKUP="true"
         break
-    fi
-
-    IFS=',' read -r -a DB_ARRAY <<< "$MYSQL_BASE_DBS"
-    IFS=' '
-    exist=true
-
-    for db in "${DB_ARRAY[@]}"; do
-        if ! mysql -e "USE \`$db\`" >/dev/null 2>&1; then
-            error "$db does not exist!"
-            exist=false
-        fi
-    done
-
-    if $exist; then
+    elif [[ "$SQL_BACKUP" == "n" ]]; then
+        SQL_BACKUP="false"
         break
     else
-        error "One or more databases do not exist. Please try again."
+        error "Invalid input. Please enter 'y' or 'n'."
     fi
 done
 
 while :; do
-    ask "Enter a list of MySQL databases to exclude from backup, separated by commas [no spaces] (leave empty for none)"
-    read MYSQL_EXP_DBS
+    ask "Should files be backed up? (y|n)"
+    read FILES_BACKUP
 
-    if [[ -z "$MYSQL_EXP_DBS" ]]; then
-        MYSQL_EXP_DBS=""
+    if [[ "$FILES_BACKUP" == "y" ]]; then
+        FILES_BACKUP="true"
         break
-    fi
-
-    IFS=',' read -r -a DB_ARRAY <<< "$MYSQL_EXP_DBS"
-    IFS=' '
-    exist=true
-
-    for db in "${DB_ARRAY[@]}"; do
-        if ! mysql -e "USE \`$db\`" >/dev/null 2>&1; then
-            error "$db does not exist!"
-            exist=false
-        fi
-    done
-
-    if $exist; then
+    elif [[ "$FILES_BACKUP" == "n" ]]; then
+        FILES_BACKUP="false"
         break
     else
-        error "One or more databases do not exist. Please try again."
+        error "Invalid input. Please enter 'y' or 'n'."
     fi
 done
+
+if [[ "$FILES_BACKUP" == "true" ]]; then
+    ask "Enter a list of directories to back up, separated by commas [no spaces]"
+    read BASE_DIRS
+    
+    ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas [no spaces]"
+    read EXCEPTION_DIRS
+fi
+
+if [[ "$SQL_BACKUP" == "true" ]]; then
+    ask "Enter a list of SQL databases to back up, separated by commas [no spaces] (leave empty to back up all databases)"
+    read SQL_BASE_DBS
+    
+    ask "Enter a list of SQL databases to exclude from backup, separated by commas [no spaces] (leave empty for none)"
+    read SQL_EXP_DBS
+fi
 
 while :; do
     ask "Enter the destination type [supported: TELEGRAM]"
@@ -206,6 +192,9 @@ TOPIC_ID = $TOPIC_ID
 [backup]
 ; Define the backup main options.
 
+; FILES_BACKUP: Set to true to enable, false to disable
+FILES_BACKUP = $FILES_BACKUP
+
 ; BASE_DIRS: List of directories to back up, separated by commas [no spaces]
 ; Example: /var/www/test1,/var/www/test2
 BASE_DIRS = $BASE_DIRS
@@ -214,13 +203,17 @@ BASE_DIRS = $BASE_DIRS
 ; Example: /var/www/test1/exp1
 EXCEPTION_DIRS = $EXCEPTION_DIRS
 
-; MYSQL_BASE_DBS: Databases to back up, default "all". Exclusions should be defined in MYSQL_EXP_DBS
-; Use "all" for all databases or list specific databases separated by commas.
-MYSQL_BASE_DBS = $MYSQL_BASE_DBS
+; SQL_BACKUP: Set to true to enable, false to disable
+; Supported structures: MySQL
+SQL_BACKUP = $SQL_BACKUP
 
-; MYSQL_EXP_DBS: Databases to exclude from backup, separated by commas
+; SQL_BASE_DBS: Databases to back up, default "". Exclusions should be defined in SQL_EXP_DBS
+; Use "" for all databases or list specific databases separated by commas.
+SQL_BASE_DBS = $SQL_BASE_DBS
+
+; SQL_EXP_DBS: Databases to exclude from backup, separated by commas
 ; These databases are excluded by default: information_schema, performance_schema, mysql, sys
-MYSQL_EXP_DBS = $MYSQL_EXP_DBS
+SQL_EXP_DBS = $SQL_EXP_DBS
 
 ; WEBSERVER_BACKUP: Set to true to enable, false to disable
 ; Supported servers: Apache, nginx
@@ -252,7 +245,7 @@ else
     exit 1
 fi
 
-if [[ -z "$BACKUP_INTERVAL_HOURS" || -z "$TYPE" || -z "$BASE_DIRS" ]]; then
+if [[ -z "$BACKUP_INTERVAL_HOURS" || -z "$TYPE" ]]; then
     echo "Error: Missing required configuration variables."
     exit 1
 fi
@@ -265,9 +258,12 @@ if [[ "$TYPE" == "TELEGRAM" ]]; then
 fi
 
 TOPIC_ID="${TOPIC_ID:-0}"
+FILES_BACKUP="${FILES_BACKUP:-true}"
+BASE_DIRS="${BASE_DIRS:-}"
 EXCEPTION_DIRS="${EXCEPTION_DIRS:-}"
-MYSQL_BASE_DBS="${MYSQL_BASE_DBS:-}"
-MYSQL_EXP_DBS="${MYSQL_EXP_DBS:-}"
+SQL_BACKUP="${SQL_BACKUP:-true}"
+SQL_BASE_DBS="${SQL_BASE_DBS:-}"
+SQL_EXP_DBS="${SQL_EXP_DBS:-}"
 WEBSERVER_BACKUP="${WEBSERVER_BACKUP:-true}"
 BACKUP_INTERVAL_SECONDS=$(echo "$BACKUP_INTERVAL_HOURS * 3600" | bc)
 
@@ -293,53 +289,69 @@ backup() {
         fi
     fi
 
-    IFS=',' read -r -a BASE_DIR_ARRAY <<< "$BASE_DIRS"
-    IFS=',' read -r -a EXCEPTION_DIR_ARRAY <<< "$EXCEPTION_DIRS"
+    if [[ "$SQL_BACKUP" == "true" ]]; then
+        SQL=""
 
-    for dir in "${BASE_DIR_ARRAY[@]}"; do
-        EXCLUDE_PATTERNS=()
-
-        for exc in "${EXCEPTION_DIR_ARRAY[@]}"; do
-            EXCLUDE_PATTERNS+=(--exclude="${exc#$dir/}")
-        done
-
-        DEST_DIR="$TEMP_DIR/files"
-        mkdir -p "$DEST_DIR"
-
-        rsync -a "${EXCLUDE_PATTERNS[@]}" "$dir/" "$DEST_DIR/"
-    done
-
-    IFS=',' read -r -a MYSQL_EXP_DBS_ARRAY <<< "$MYSQL_EXP_DBS"
-    DEFAULT_MYSQL_EXCLUSIONS=("information_schema" "performance_schema" "mysql" "sys")
-
-    for default_db in "${DEFAULT_MYSQL_EXCLUSIONS[@]}"; do
-        if [[ ! " ${MYSQL_EXP_DBS_ARRAY[@]} " =~ " ${default_db} " ]]; then
-            MYSQL_EXP_DBS_ARRAY+=("$default_db")
+        if command -v mysql >/dev/null 2>&1; then
+            SQL="mysql"
+        else
+            SQL_BACKUP="false"
         fi
-    done
-
-    if [[ -z "$MYSQL_BASE_DBS" ]]; then
-        MYSQL_BASE_DBS_ARRAY=($(mysql -e "SHOW DATABASES;" -s --skip-column-names))
-    else
-        IFS=',' read -r -a MYSQL_BASE_DBS_ARRAY <<< "$MYSQL_BASE_DBS"
     fi
 
-    MYSQL_BACKUP_DIR="$TEMP_DIR/mysql"
-    mkdir -p "$MYSQL_BACKUP_DIR"
+    if [[ "$FILES_BACKUP" == "true" ]]; then
+        IFS=',' read -r -a BASE_DIR_ARRAY <<< "$BASE_DIRS"
+        IFS=',' read -r -a EXCEPTION_DIR_ARRAY <<< "$EXCEPTION_DIRS"
+    
+        for dir in "${BASE_DIR_ARRAY[@]}"; do
+            EXCLUDE_PATTERNS=()
+    
+            for exc in "${EXCEPTION_DIR_ARRAY[@]}"; do
+                EXCLUDE_PATTERNS+=(--exclude="${exc#$dir/}")
+            done
+    
+            DEST_DIR="$TEMP_DIR/files"
+            mkdir -p "$DEST_DIR"
+    
+            rsync -a "${EXCLUDE_PATTERNS[@]}" "$dir/" "$DEST_DIR/"
+        done
+    fi
 
-    for db in "${MYSQL_BASE_DBS_ARRAY[@]}"; do
-        skip_db=false
-        for exp_db in "${MYSQL_EXP_DBS_ARRAY[@]}"; do
-            if [[ "$db" == "$exp_db" ]]; then
-                skip_db=true
-                break
+    if [[ "$SQL_BACKUP" == "true" ]]; then
+        IFS=',' read -r -a SQL_EXP_DBS_ARRAY <<< "$SQL_EXP_DBS"
+        DEFAULT_SQL_EXCLUSIONS=("information_schema" "performance_schema" "mysql" "sys")
+    
+        for default_db in "${DEFAULT_SQL_EXCLUSIONS[@]}"; do
+            if [[ ! " ${SQL_EXP_DBS_ARRAY[@]} " =~ " ${default_db} " ]]; then
+                SQL_EXP_DBS_ARRAY+=("$default_db")
             fi
         done
-
-        if ! $skip_db; then
-            mysqldump "$db" > "$MYSQL_BACKUP_DIR/$db.sql"
+    
+        if [[ -z "$SQL_BASE_DBS" ]]; then
+            if [[ "$SQL" == "mysql" ]]; then
+                SQL_BASE_DBS_ARRAY=($(mysql -e "SHOW DATABASES;" -s --skip-column-names))
+            fi
+        else
+            IFS=',' read -r -a SQL_BASE_DBS_ARRAY <<< "$SQL_BASE_DBS"
         fi
-    done
+    
+        SQL_BACKUP_DIR="$TEMP_DIR/sql"
+        mkdir -p "$SQL_BACKUP_DIR"
+    
+        for db in "${SQL_BASE_DBS_ARRAY[@]}"; do
+            skip_db=false
+            for exp_db in "${SQL_EXP_DBS_ARRAY[@]}"; do
+                if [[ "$db" == "$exp_db" ]]; then
+                    skip_db=true
+                    break
+                fi
+            done
+    
+            if ! $skip_db; then
+                mysqldump "$db" > "$SQL_BACKUP_DIR/$db.sql"
+            fi
+        done
+    fi
 
     BACKUP_ARCHIVE="/tmp/backup_$(date +'%Y%m%d%H%M%S').zip"
     cd "$TEMP_DIR" || exit 1
