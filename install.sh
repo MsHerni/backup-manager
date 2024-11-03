@@ -300,9 +300,7 @@ backup() {
         EXCLUDE_PATTERNS=()
 
         for exc in "${EXCEPTION_DIR_ARRAY[@]}"; do
-            if [[ "$exc" == "$dir"* ]]; then
-                EXCLUDE_PATTERNS+=(--exclude="${exc#$dir/}")
-            fi
+            EXCLUDE_PATTERNS+=(--exclude="${exc#$dir/}")
         done
 
         DEST_DIR="$TEMP_DIR/files"
