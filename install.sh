@@ -101,7 +101,7 @@ done
 if [[ "$FILES_BACKUP" == "true" ]]; then
     ask "Enter a list of directories to back up, separated by commas"
     read BASE_DIRS
-    
+
     ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas"
     read EXCEPTION_DIRS
 fi
@@ -109,7 +109,7 @@ fi
 if [[ "$SQL_BACKUP" == "true" ]]; then
     ask "Enter a list of SQL databases to back up, separated by commas (leave empty to back up all databases)"
     read SQL_BASE_DBS
-    
+
     ask "Enter a list of SQL databases to exclude from backup, separated by commas (leave empty for none)"
     read SQL_EXP_DBS
 fi
@@ -304,19 +304,19 @@ backup() {
     if [[ "$FILES_BACKUP" == "true" ]]; then
         IFS=',' read -r -a BASE_DIR_ARRAY <<< "$BASE_DIRS"
         IFS=',' read -r -a EXCEPTION_DIR_ARRAY <<< "$EXCEPTION_DIRS"
-    
+
         for dir in "${BASE_DIR_ARRAY[@]}"; do
             dir="$(echo -e "${dir}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
             EXCLUDE_PATTERNS=()
-    
+
             for exc in "${EXCEPTION_DIR_ARRAY[@]}"; do
                 exc="$(echo -e "${exc}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
                 EXCLUDE_PATTERNS+=(--exclude="${exc#$dir/}")
             done
-    
+
             DEST_DIR="$TEMP_DIR/files"
             mkdir -p "$DEST_DIR"
-    
+
             rsync -a "${EXCLUDE_PATTERNS[@]}" "$dir/" "$DEST_DIR/"
         done
     fi
@@ -324,13 +324,13 @@ backup() {
     if [[ "$SQL_BACKUP" == "true" ]]; then
         IFS=',' read -r -a SQL_EXP_DBS_ARRAY <<< "$SQL_EXP_DBS"
         DEFAULT_SQL_EXCLUSIONS=("information_schema" "performance_schema" "mysql" "sys" "test")
-    
+
         for default_db in "${DEFAULT_SQL_EXCLUSIONS[@]}"; do
             if [[ ! " ${SQL_EXP_DBS_ARRAY[@]} " =~ " ${default_db} " ]]; then
                 SQL_EXP_DBS_ARRAY+=("$default_db")
             fi
         done
-    
+
         if [[ -z "$SQL_BASE_DBS" ]]; then
             if [[ "$SQL" == "mysql" || "$SQL" == "mariadb" ]]; then
                 SQL_BASE_DBS_ARRAY=($(mysql -e "SHOW DATABASES;" -s --skip-column-names))
@@ -338,10 +338,10 @@ backup() {
         else
             IFS=',' read -r -a SQL_BASE_DBS_ARRAY <<< "$SQL_BASE_DBS"
         fi
-    
+
         SQL_BACKUP_DIR="$TEMP_DIR/sql"
         mkdir -p "$SQL_BACKUP_DIR"
-    
+
         for db in "${SQL_BASE_DBS_ARRAY[@]}"; do
             db="$(echo -e "${db}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
@@ -354,7 +354,7 @@ backup() {
                     break
                 fi
             done
-    
+
             if ! $skip_db; then
                 if [[ "$SQL" == "mysql" || "$SQL" == "mariadb" ]]; then
                     mysqldump "$db" > "$SQL_BACKUP_DIR/$db.sql"
