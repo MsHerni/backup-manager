@@ -25,6 +25,7 @@ curl -sL https://raw.githubusercontent.com/MsHerni/backup-manager/main/uninstall
 - **SQL Database Backup**: Select specific databases to back up or exclude, with support for all databases by default.
 - **Webserver Configurations Backup**: Optionally include Apache or NGINX configuration files in your backup.
 - **Telegram Storing**: Receive backups as compressed files via Telegram.
+- **Server Storing**: Receive backups as compressed files remotely in your server.
 - **Auto-start Service**: Creates a Systemd service for auto-starting and background operation.
 
 ---
@@ -47,7 +48,7 @@ BACKUP_INTERVAL_HOURS = 24
 
 [destination]
 ; Define the destination of the backup files.
-; Supported destination type(s): TELEGRAM
+; Supported destination type(s): TELEGRAM, SERVER
 
 ; TELEGRAM Section
 ; TOKEN and CHAT_ID are required; TOPIC_ID is optional.
@@ -56,6 +57,16 @@ TYPE = TELEGRAM
 TOKEN = your_telegram_bot_token
 CHAT_ID = your_chat_id
 TOPIC_ID = your_topic_id  # optional
+
+; SERVER Section
+; Everything is required.
+; --------------------
+TYPE = SERVER
+SERVER_IP = your_remote_server_ip
+SERVER_PORT = your_remote_server_port
+SERVER_USER = your_remote_server_user
+SERVER_PASSWORD = your_remote_server_password # i know its not ideal
+SERVER_FOLDER = your_remove_server_destination_path
 
 
 [backup]
@@ -110,7 +121,3 @@ systemctl restart backup
 ```bash
 systemctl status backup
 ```
-
-## 📋 To-Do List
-
-- Additional backup destinations (e.g., Another Server)
