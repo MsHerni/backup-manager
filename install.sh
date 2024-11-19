@@ -15,6 +15,11 @@ if ! command -v zip &> /dev/null; then
     exit 1
 fi
 
+if ! command -v sshpass &> /dev/null; then
+    echo "'sshpass' command is required but not installed."
+    exit 1
+fi
+
 RESET='\e[0m'
 GREEN='\e[32m'
 RED='\e[31m'
@@ -115,7 +120,7 @@ if [[ "$SQL_BACKUP" == "true" ]]; then
 fi
 
 while :; do
-    ask "Enter the destination type [supported: TELEGRAM]"
+    ask "Enter the destination type [supported: TELEGRAM, SERVER]"
     read TYPE
 
     if [[ "$TYPE" == "TELEGRAM" ]]; then
@@ -150,6 +155,59 @@ while :; do
             fi
         done
         break
+    elif [[ "$TYPE" == "SERVER" ]]; then
+        while :; do
+            ask "Enter the server IP-address"
+            read SERVER_IP
+
+            if [[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                while :; do
+                    ask "Enter the server port"
+                    read SERVER_PORT
+
+                    if [[ "$SERVER_PORT" =~ ^[0-9]{1,5}$ && "$SERVER_PORT" -le 65535 ]]; then
+                        while :; do
+                            ask "Enter the server folder path"
+                            read SERVER_FOLDER
+
+                            if [[ -n "$SERVER_FOLDER" ]]; then
+                                while :; do
+                                    ask "Enter the server user"
+                                    read SERVER_USER
+
+                                    if [[ -n "$SERVER_USER" ]]; then
+                                        while :; do
+                                            ask "Enter the server password"
+                                            read SERVER_PASSWORD
+
+                                            if [[ -n "$SERVER_PASSWORD" ]]; then
+                                                echo
+                                                break
+                                            else
+                                                error "Invalid server password!"
+                                            fi
+                                        done
+                                        break
+                                    else
+                                        error "Invalid server user!"
+                                    fi
+                                done
+                                break
+                            else
+                                error "Invalid folder path!"
+                            fi
+                        done
+                        break
+                    else
+                        error "Invalid port number!"
+                    fi
+                done
+                break
+            else
+                error "Invalid IP-address!"
+            fi
+        done
+        break
     else
         error "Unsupported destination type! Currently only 'TELEGRAM' is supported"
     fi
@@ -178,15 +236,22 @@ BACKUP_INTERVAL_HOURS = $BACKUP_INTERVAL_HOURS
 
 [destination]
 ; Define the destination of the backup files.
-; Supported destination type(s): TELEGRAM
+; Supported destination type(s): TELEGRAM, SERVER
 
 ; TELEGRAM Section
 ; TOKEN and CHAT_ID are required; TOPIC_ID is optional.
 ; --------------------
 TYPE = $TYPE
+
 TOKEN = $TOKEN
 CHAT_ID = $CHAT_ID
 TOPIC_ID = $TOPIC_ID
+
+SERVER_IP = $SERVER_IP
+SERVER_PORT = $SERVER_PORT
+SERVER_FOLDER = $SERVER_FOLDER
+SERVER_USER = $SERVER_USER
+SERVER_PASSWORD = $SERVER_PASSWORD
 
 
 [backup]
@@ -255,9 +320,24 @@ if [[ "$TYPE" == "TELEGRAM" ]]; then
         echo "Error: TYPE is set to TELEGRAM, but TOKEN or CHAT_ID is missing."
         exit 1
     fi
+elif [[ "$TYPE" == "SERVER" ]]; then
+    if [[ -z "$SERVER_IP" || -z "$SERVER_PORT" || -z "$SERVER_FOLDER" || -z "$SERVER_USER" || -z "$SERVER_PASSWORD" ]]; then
+        echo "Error: TYPE is set to SERVER, but SERVER_IP, SERVER_PORT, SERVER_FOLDER, SERVER_USER or SERVER_PASSWORD is missing."
+        exit 1
+    fi
+else
+    echo "Error: Unsupported TYPE. Must be TELEGRAM or SERVER."
+    exit 1
 fi
 
+TOKEN="${TOKEN:-}"
+CHAT_ID="${CHAT_ID:-}"
 TOPIC_ID="${TOPIC_ID:-0}"
+SERVER_IP="${SERVER_IP:-}"
+SERVER_PORT="${SERVER_PORT:-}"
+SERVER_FOLDER="${SERVER_FOLDER:-}"
+SERVER_USER="${SERVER_USER:-}"
+SERVER_PASSWORD="${SERVER_PASSWORD:-}"
 FILES_BACKUP="${FILES_BACKUP:-true}"
 BASE_DIRS="${BASE_DIRS:-}"
 EXCEPTION_DIRS="${EXCEPTION_DIRS:-}"
@@ -378,9 +458,22 @@ while :; do
         TELEGRAM_API="https://api.telegram.org/bot${TOKEN}/sendDocument"
 
         if [[ "$TOPIC_ID" != "0" ]]; then
-            curl -s -F "chat_id=${CHAT_ID}" -F "document=@${ZIP_FILE}" -F "message_thread_id=${TOPIC_ID}" "$TELEGRAM_API" > /dev/null 2>&1
+            RESPONSE=$(curl -s -F "chat_id=${CHAT_ID}" -F "document=@${ZIP_FILE}" -F "message_thread_id=${TOPIC_ID}" "$TELEGRAM_API")
         else
-            curl -s -F "chat_id=${CHAT_ID}" -F "document=@${ZIP_FILE}" "$TELEGRAM_API" > /dev/null 2>&1
+            RESPONSE=$(curl -s -F "chat_id=${CHAT_ID}" -F "document=@${ZIP_FILE}" "$TELEGRAM_API")
+        fi
+
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to send backup via Telegram (curl error)" | systemd-cat -p err
+        elif ! echo "$RESPONSE" | jq -e '.ok' > /dev/null 2>&1; then
+            ERROR_MESSAGE=$(echo "$RESPONSE" | jq -r '.description // "Unknown error"')
+            echo "Error: Telegram API error: $ERROR_MESSAGE" | systemd-cat -p err
+        fi
+    elif [[ "$TYPE" == "SERVER" ]]; then
+        sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$SERVER_PORT" "$ZIP_FILE" "${SERVER_USER}@${SERVER_IP}:${SERVER_FOLDER}" > /dev/null 2>&1
+
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to send the backup to the server via SSH-SCP" | systemd-cat -p err
         fi
     fi
 
