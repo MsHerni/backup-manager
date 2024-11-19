@@ -32,6 +32,8 @@ curl -sL https://raw.githubusercontent.com/MsHerni/backup-manager/main/uninstall
 
 The configuration file is generated during installation. This file has multiple sections for customizing backups.
 
+*⚠️ The script loads the configuration file at startup. If you make changes to the configuration file (`conf.ini`), you must restart the systemd service for the changes to take effect.*
+
 Example of conf.ini:
 ```ini
 [settings]
@@ -83,6 +85,30 @@ SQL_EXP_DBS = excluded_db1, excluded_db2
 ; WEBSERVER_BACKUP: Set to true to enable, false to disable
 ; Supported servers: Apache, nginx
 WEBSERVER_BACKUP = true
+```
+
+## 🛠 Systemd Service Management
+
+The script uses a Systemd service to run in the background and schedule backups automatically. Here are some useful commands for managing the service:
+
+- Start the service:
+```bash
+systemctl start backup
+```
+
+- Stop the service:
+```bash
+systemctl stop backup
+```
+
+- Restart the service (required after configuration changes):
+```bash
+systemctl restart backup
+```
+
+- Check the status of the service:
+```bash
+systemctl status backup
 ```
 
 ## 📋 To-Do List
