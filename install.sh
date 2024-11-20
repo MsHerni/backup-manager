@@ -10,6 +10,11 @@ if ! command -v bc &> /dev/null; then
     exit 1
 fi
 
+if ! command -v jq &> /dev/null; then
+    echo "'jq' command is required but not installed."
+    exit 1
+fi
+
 if ! command -v zip &> /dev/null; then
     echo "'zip' command is required but not installed."
     exit 1
