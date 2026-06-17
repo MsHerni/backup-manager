@@ -94,6 +94,21 @@ while :; do
 done
 
 while :; do
+    ask "Should systemd unit configurations be backed up? (y|n)"
+    read SYSTEMD_BACKUP
+
+    if [[ "$SYSTEMD_BACKUP" == "y" ]]; then
+        SYSTEMD_BACKUP="true"
+        break
+    elif [[ "$SYSTEMD_BACKUP" == "n" ]]; then
+        SYSTEMD_BACKUP="false"
+        break
+    else
+        error "Invalid input. Please enter 'y' or 'n'."
+    fi
+done
+
+while :; do
     ask "Should files be backed up? (y|n)"
     read FILES_BACKUP
 
@@ -114,6 +129,11 @@ if [[ "$FILES_BACKUP" == "true" ]]; then
 
     ask "Enter a list of directories within BASE_DIRS to exclude, separated by commas"
     read EXCEPTION_DIRS
+fi
+
+if [[ "$SYSTEMD_BACKUP" == "true" ]]; then
+    ask "Enter a list of systemd units to back up, separated by commas"
+    read SYSTEMD_UNITS
 fi
 
 if [[ "$SQL_BACKUP" == "true" ]]; then
