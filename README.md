@@ -81,6 +81,13 @@ BASE_DIRS = /var/www, /home/user/documents
 ; EXCEPTION_DIRS: Directories within BASE_DIRS to exclude, separated by commas
 EXCEPTION_DIRS = */vendor
 
+; SYSTEMD_BACKUP: Set to true to enable, false to disable
+SYSTEMD_BACKUP = $SYSTEMD_BACKUP
+
+; SYSTEMD_UNITS: List of systemd units to back up, separated by commas
+; Example: nginx,docker
+SYSTEMD_UNITS = $SYSTEMD_UNITS
+
 ; SQL_BACKUP: Set to true to enable, false to disable
 ; Supported structures: MySQL, MariaDB
 SQL_BACKUP = true
