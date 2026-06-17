@@ -273,6 +273,13 @@ BASE_DIRS = $BASE_DIRS
 ; Example: /var/www/test1/exp1
 EXCEPTION_DIRS = $EXCEPTION_DIRS
 
+; SYSTEMD_BACKUP: Set to true to enable, false to disable
+SYSTEMD_BACKUP = $SYSTEMD_BACKUP
+
+; SYSTEMD_UNITS: List of systemd units to back up, separated by commas
+; Example: nginx,docker
+SYSTEMD_UNITS = $SYSTEMD_UNITS
+
 ; SQL_BACKUP: Set to true to enable, false to disable
 ; Supported structures: MySQL, MariaDB
 SQL_BACKUP = $SQL_BACKUP
@@ -346,6 +353,8 @@ SERVER_PASSWORD="${SERVER_PASSWORD:-}"
 FILES_BACKUP="${FILES_BACKUP:-true}"
 BASE_DIRS="${BASE_DIRS:-}"
 EXCEPTION_DIRS="${EXCEPTION_DIRS:-}"
+SYSTEMD_BACKUP="${SYSTEMD_BACKUP:-true}"
+SYSTEMD_UNITS="${SYSTEMD_UNITS:-}"
 SQL_BACKUP="${SQL_BACKUP:-true}"
 SQL_BASE_DBS="${SQL_BASE_DBS:-}"
 SQL_EXP_DBS="${SQL_EXP_DBS:-}"
@@ -403,6 +412,33 @@ backup() {
             mkdir -p "$DEST_DIR"
 
             rsync -a "${EXCLUDE_PATTERNS[@]}" "$dir/" "$DEST_DIR/"
+        done
+    fi
+
+    if [[ "$SYSTEMD_BACKUP" == "true" && -n "$SYSTEMD_UNITS" ]] && command -v systemctl >/dev/null 2>&1; then
+        IFS=',' read -r -a SYSTEMD_UNIT_ARRAY <<< "$SYSTEMD_UNITS"
+
+        SYSTEMD_BACKUP_DIR="$TEMP_DIR/systemd"
+        mkdir -p "$SYSTEMD_BACKUP_DIR"
+
+        for unit in "${SYSTEMD_UNIT_ARRAY[@]}"; do
+            unit="$(echo -e "${unit}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            [[ -z "$unit" ]] && continue
+
+            UNIT_PATH=$(systemctl show -p FragmentPath "$unit" 2>/dev/null)
+            UNIT_PATH="${UNIT_PATH#FragmentPath=}"
+            if [[ -n "$UNIT_PATH" && -f "$UNIT_PATH" ]]; then
+                cp "$UNIT_PATH" "$SYSTEMD_BACKUP_DIR/"
+            fi
+
+            DROPIN_PATHS=$(systemctl show -p DropInPaths "$unit" 2>/dev/null)
+            DROPIN_PATHS="${DROPIN_PATHS#DropInPaths=}"
+            if [[ -n "$DROPIN_PATHS" ]]; then
+                mkdir -p "$SYSTEMD_BACKUP_DIR/${unit}.d"
+                for dropin in $DROPIN_PATHS; do
+                    [[ -f "$dropin" ]] && cp "$dropin" "$SYSTEMD_BACKUP_DIR/${unit}.d/"
+                done
+            fi
         done
     fi
 
